@@ -1,0 +1,151 @@
+﻿<Window x:Class="PharmaOrderApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:PharmaOrderApp.Models"
+        Title="PharmaFlow - заказ лекарств" Height="760" Width="1180"
+        MinHeight="680" MinWidth="1020" Background="{StaticResource CreamBrush}">
+    <Grid>
+        <Grid x:Name="LoginPanel" Background="{StaticResource CreamBrush}">
+            <Border Width="430" Padding="34" CornerRadius="24" Background="White" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.18" />
+                </Border.Effect>
+                <StackPanel>
+                    <TextBlock Text="PharmaFlow" FontSize="34" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                    <TextBlock Text="Аптечный заказ: клиент, каталог, корзина, роли и база данных" TextWrapping="Wrap" Margin="0,8,0,22" Foreground="#65717C" />
+
+                    <TextBlock Text="Логин" FontWeight="SemiBold" />
+                    <TextBox x:Name="LoginBox" Text="client" />
+                    <TextBlock Text="Пароль" FontWeight="SemiBold" Margin="0,8,0,0" />
+                    <PasswordBox x:Name="PasswordBox" Password="client" />
+
+                    <Button Content="Войти" Height="38" Click="Login_Click" />
+                    <Button Content="Войти как гость" Height="38" Background="#6C757D" Click="Guest_Click" />
+                    <TextBlock x:Name="LoginMessage" Foreground="#C1121F" TextWrapping="Wrap" Margin="4,12,4,0" />
+
+                    <Border Background="#EEF7F5" CornerRadius="14" Padding="12" Margin="0,22,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Тестовые пользователи" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                            <TextBlock Text="admin/admin - админ" />
+                            <TextBlock Text="pharm/pharm - фармацевт" />
+                            <TextBlock Text="client/client - клиент" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="AppPanel" Visibility="Collapsed" Margin="18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" CornerRadius="20" Background="{StaticResource InkBrush}" Padding="20" Margin="0,0,0,14">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="PharmaFlow" FontSize="28" FontWeight="Bold" Foreground="White" />
+                        <TextBlock x:Name="UserLabel" Foreground="#BDE0D9" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Обновить" Click="Refresh_Click" />
+                        <Button Content="Выйти" Background="#E76F51" Click="Logout_Click" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2.1*" />
+                    <ColumnDefinition Width="1.1*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Background="White" CornerRadius="18" Padding="16" Margin="0,0,10,0">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top">
+                            <TextBlock Text="Каталог товаров" FontSize="22" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                            <WrapPanel Margin="0,10,0,10">
+                                <TextBox x:Name="SearchBox" Width="230" TextChanged="Filters_Changed" ToolTip="Поиск по названию или производителю" />
+                                <ComboBox x:Name="CategoryFilter" Width="180" SelectionChanged="Filters_Changed" />
+                                <ComboBox x:Name="PharmacyFilter" Width="180" SelectionChanged="Filters_Changed" />
+                                <ComboBox x:Name="SortBox" Width="140" SelectionChanged="Filters_Changed">
+                                    <ComboBoxItem Content="Название" IsSelected="True" />
+                                    <ComboBoxItem Content="Цена ↑" />
+                                    <ComboBoxItem Content="Цена ↓" />
+                                    <ComboBoxItem Content="Остаток ↓" />
+                                </ComboBox>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                  SelectionChanged="ProductsGrid_SelectionChanged" MouseDoubleClick="AddToCart_Click">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Товар" Binding="{Binding Name}" Width="1.7*" />
+                                <DataGridTextColumn Header="Категория" Binding="{Binding Category}" Width="1.1*" />
+                                <DataGridTextColumn Header="Аптека" Binding="{Binding Pharmacy}" Width="1.2*" />
+                                <DataGridTextColumn Header="Форма" Binding="{Binding Form}" Width="0.8*" />
+                                <DataGridTextColumn Header="Рецепт" Binding="{Binding PrescriptionTitle}" Width="0.8*" />
+                                <DataGridTextColumn Header="Цена" Binding="{Binding PriceTitle}" Width="0.7*" />
+                                <DataGridTextColumn Header="Остаток" Binding="{Binding Stock}" Width="0.6*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <StackPanel Grid.Column="1">
+                    <Border Background="White" CornerRadius="18" Padding="16" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Карточка товара" FontSize="20" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                            <TextBlock x:Name="ProductTitle" Text="Выберите товар" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,4" />
+                            <TextBlock x:Name="ProductInfo" TextWrapping="Wrap" Foreground="#4F5D63" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBlock Text="Кол-во:" VerticalAlignment="Center" />
+                                <TextBox x:Name="QuantityBox" Width="60" Text="1" />
+                                <Button Content="В корзину" Click="AddToCart_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="White" CornerRadius="18" Padding="16" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Корзина и заказ" FontSize="20" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                            <ListBox x:Name="CartList" Height="120" DisplayMemberPath="Display" Margin="0,8,0,8" />
+                            <TextBlock x:Name="CartTotal" FontWeight="Bold" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Удалить строку" Background="#6C757D" Click="RemoveCartItem_Click" />
+                                <Button Content="Оформить заказ" Click="CreateOrder_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="AdminPanel" Background="White" CornerRadius="18" Padding="16" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="Администрирование товара" FontSize="20" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                            <TextBox x:Name="EditName" ToolTip="Название" />
+                            <TextBox x:Name="EditCategory" ToolTip="Категория" />
+                            <TextBox x:Name="EditPharmacy" ToolTip="Аптека" />
+                            <TextBox x:Name="EditManufacturer" ToolTip="Производитель" />
+                            <TextBox x:Name="EditForm" ToolTip="Форма выпуска" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="EditPrice" Width="90" ToolTip="Цена" />
+                                <TextBox x:Name="EditStock" Width="90" ToolTip="Остаток" />
+                                <CheckBox x:Name="EditPrescription" Content="Рецепт" VerticalAlignment="Center" Margin="8,0" />
+                            </StackPanel>
+                            <TextBox x:Name="EditDescription" Height="55" TextWrapping="Wrap" AcceptsReturn="True" ToolTip="Описание" />
+                            <WrapPanel>
+                                <Button Content="Новый" Background="#6C757D" Click="NewProduct_Click" />
+                                <Button Content="Сохранить" Click="SaveProduct_Click" />
+                                <Button Content="Удалить" Background="#C1121F" Click="DeleteProduct_Click" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="2" Background="#EEF7F5" CornerRadius="14" Padding="10" Margin="0,14,0,0">
+                <TextBlock x:Name="StatusLabel" Text="Готово" Foreground="{StaticResource InkBrush}" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
