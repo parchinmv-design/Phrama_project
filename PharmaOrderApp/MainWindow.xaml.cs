@@ -1,10 +1,10 @@
-﻿using PharmaOrderApp.Models;
+using PharmaOrderApp.Models;
 using PharmaOrderApp.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using System.Windows.Media;
 
 namespace PharmaOrderApp;
 
@@ -13,6 +13,11 @@ public partial class MainWindow : Window
     private readonly DatabaseService _database = new();
     private readonly ObservableCollection<Product> _products = new();
     private readonly ObservableCollection<CartItem> _cart = new();
+    private readonly ObservableCollection<Order> _orders = new();
+    private readonly ObservableCollection<SupplyRequestSummary> _supplyRequests = new();
+    private readonly ObservableCollection<EmployeeSummary> _employees = new();
+    private readonly ObservableCollection<ClientSummary> _clients = new();
+    private readonly ObservableCollection<ActivityLogEntry> _activityLogs = new();
     private User _currentUser = new() { FullName = "Гость", Login = "guest", Role = UserRole.Guest };
     private int _editingProductId;
     private bool _ready;
@@ -22,6 +27,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         ProductsGrid.ItemsSource = _products;
         CartList.ItemsSource = _cart;
+        OrdersGrid.ItemsSource = _orders;
+        SupplyGrid.ItemsSource = _supplyRequests;
+        EmployeesGrid.ItemsSource = _employees;
+        ClientsGrid.ItemsSource = _clients;
+        AuditGrid.ItemsSource = _activityLogs;
         Loaded += (_, _) => Start();
     }
 
@@ -30,10 +40,11 @@ public partial class MainWindow : Window
         try
         {
             _database.Initialize();
-            LoadFilters();
+            LoadLookups();
+            SupplyNeededDatePicker.SelectedDate ??= DateTime.Today.AddDays(3);
             _ready = true;
-            RefreshProducts();
-            Status("База данных создана и заполнена тестовыми данными.");
+            RefreshAll();
+            Status("Данные синхронизированы. Каталог, роли и окна готовы.");
         }
         catch (Exception ex)
         {
@@ -67,9 +78,38 @@ public partial class MainWindow : Window
         OpenApplication();
     }
 
+    private void RegisterClient_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _database.RegisterClient(
+                RegisterLoginBox.Text,
+                RegisterPasswordBox.Password,
+                RegisterFullNameBox.Text,
+                RegisterPhoneBox.Text,
+                RegisterEmailBox.Text);
+
+            RegisterMessage.Text = "Клиент зарегистрирован. Можно входить под новой учётной записью.";
+            LoginBox.Text = RegisterLoginBox.Text;
+            PasswordBox.Password = RegisterPasswordBox.Password;
+            RegisterFullNameBox.Text = string.Empty;
+            RegisterLoginBox.Text = string.Empty;
+            RegisterPasswordBox.Password = string.Empty;
+            RegisterPhoneBox.Text = string.Empty;
+            RegisterEmailBox.Text = string.Empty;
+            Status("Создан новый клиент.");
+        }
+        catch (Exception ex)
+        {
+            RegisterMessage.Text = ex.Message;
+        }
+    }
+
     private void Logout_Click(object sender, RoutedEventArgs e)
     {
+        _currentUser = new User { FullName = "Гость", Login = "guest", Role = UserRole.Guest };
         _cart.Clear();
+        _orders.Clear();
         UpdateCartTotal();
         LoginPanel.Visibility = Visibility.Visible;
         AppPanel.Visibility = Visibility.Collapsed;
@@ -81,34 +121,92 @@ public partial class MainWindow : Window
     {
         LoginPanel.Visibility = Visibility.Collapsed;
         AppPanel.Visibility = Visibility.Visible;
-        UserLabel.Text = $"{_currentUser.FullName} | роль: {_currentUser.RoleTitle}";
-        AdminPanel.Visibility = _currentUser.Role is UserRole.Admin or UserRole.Pharmacist ? Visibility.Visible : Visibility.Collapsed;
-        RefreshProducts();
+        LoginMessage.Text = string.Empty;
+        UserLabel.Text = $"{_currentUser.FullName} | роль: {_currentUser.RoleTitle}" +
+                         (string.IsNullOrWhiteSpace(_currentUser.AssignedPharmacyName) ? string.Empty : $" | аптека: {_currentUser.AssignedPharmacyName}");
+
+        var isClientArea = _currentUser.Role is UserRole.Client or UserRole.Guest;
+        var isManager = _currentUser.Role == UserRole.Manager;
+        var isAdmin = _currentUser.Role == UserRole.Admin;
+
+        ClientCatalogTab.Visibility = isClientArea ? Visibility.Visible : Visibility.Collapsed;
+        ClientOrdersTab.Visibility = _currentUser.Role == UserRole.Client ? Visibility.Visible : Visibility.Collapsed;
+        ManagerTab.Visibility = isManager ? Visibility.Visible : Visibility.Collapsed;
+        AdminTab.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+
+        AddToCartButton.IsEnabled = _currentUser.Role == UserRole.Client;
+        CreateOrderButton.IsEnabled = _currentUser.Role == UserRole.Client;
+        DeliveryMethodBox.IsEnabled = _currentUser.Role == UserRole.Client;
+        PaymentMethodBox.IsEnabled = _currentUser.Role == UserRole.Client;
+        OrderCommentBox.IsEnabled = _currentUser.Role == UserRole.Client;
+        QuantityBox.IsEnabled = _currentUser.Role == UserRole.Client;
+
+        EditPharmacyBox.IsEnabled = isAdmin;
+        SupplyPharmacyBox.IsEnabled = isAdmin;
+        if (isManager)
+        {
+            SelectLookupById(EditPharmacyBox, _currentUser.AssignedPharmacyId);
+            SelectLookupById(SupplyPharmacyBox, _currentUser.AssignedPharmacyId);
+        }
+
+        RefreshButton.Content = _currentUser.Role switch
+        {
+            UserRole.Admin => "Обновить контроль",
+            UserRole.Manager => "Обновить поставки",
+            _ => "Обновить каталог"
+        };
+
+        OrdersCaption.Text = _currentUser.Role == UserRole.Client ? "Мои заказы" : "Заказы";
+
+        WorkspaceTabs.SelectedItem = isAdmin ? AdminTab : isManager ? ManagerTab : ClientCatalogTab;
+        RefreshAll();
         Status($"Вход выполнен: {_currentUser.RoleTitle}.");
     }
 
-    private void LoadFilters()
+    private void LoadLookups()
     {
-        CategoryFilter.Items.Clear();
-        CategoryFilter.Items.Add("Все категории");
-        foreach (var category in _database.GetCategories()) CategoryFilter.Items.Add(category);
+        CategoryFilter.ItemsSource = AddAllItem(_database.GetCategories(), "Все категории");
         CategoryFilter.SelectedIndex = 0;
-
-        PharmacyFilter.Items.Clear();
-        PharmacyFilter.Items.Add("Все аптеки");
-        foreach (var pharmacy in _database.GetPharmacies()) PharmacyFilter.Items.Add(pharmacy);
+        PharmacyFilter.ItemsSource = AddAllItem(_database.GetPharmacies(), "Все аптеки");
         PharmacyFilter.SelectedIndex = 0;
+
+        EditCategoryBox.ItemsSource = _database.GetCategories();
+        EditManufacturerBox.ItemsSource = _database.GetManufacturers();
+        EditFormBox.ItemsSource = _database.GetForms();
+        EditPharmacyBox.ItemsSource = _database.GetPharmacies();
+        SupplySupplierBox.ItemsSource = _database.GetSuppliers();
+        SupplyPharmacyBox.ItemsSource = _database.GetPharmacies();
+        NewEmployeePharmacyBox.ItemsSource = _database.GetPharmacies();
     }
 
-    private void Filters_Changed(object sender, EventArgs e)
+    private static List<LookupItem> AddAllItem(IReadOnlyList<LookupItem> source, string title)
     {
-        if (_ready) RefreshProducts();
+        var list = new List<LookupItem> { new() { Id = 0, Name = title } };
+        list.AddRange(source);
+        return list;
     }
 
     private void Refresh_Click(object sender, RoutedEventArgs e)
     {
-        LoadFilters();
+        LoadLookups();
+        RefreshAll();
+    }
+
+    private void RefreshAll()
+    {
         RefreshProducts();
+        RefreshOrders();
+        RefreshManagerData();
+        RefreshAdminData();
+        SyncProductPickers();
+    }
+
+    private void Filters_Changed(object sender, EventArgs e)
+    {
+        if (_ready)
+        {
+            RefreshProducts();
+        }
     }
 
     private void RefreshProducts()
@@ -116,49 +214,194 @@ public partial class MainWindow : Window
         try
         {
             var sort = (SortBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Название";
-            var category = CategoryFilter.SelectedItem?.ToString() ?? "Все категории";
-            var pharmacy = PharmacyFilter.SelectedItem?.ToString() ?? "Все аптеки";
-            var products = _database.SearchProducts(SearchBox.Text, category, pharmacy, sort);
+            var categoryId = (CategoryFilter.SelectedItem as LookupItem)?.Id;
+            var pharmacyId = (PharmacyFilter.SelectedItem as LookupItem)?.Id;
+            var products = _database.SearchProducts(SearchBox.Text, categoryId > 0 ? categoryId : null, pharmacyId > 0 ? pharmacyId : null, sort);
             _products.Clear();
-            foreach (var product in products) _products.Add(product);
-            Status($"Загружено товаров: {_products.Count}.");
+            foreach (var product in products)
+            {
+                _products.Add(product);
+            }
+
+            BuildCategoryShowcases();
+            SyncProductPickers();
+            Status($"Каталог обновлён. Найдено препаратов: {_products.Count}.");
         }
         catch (Exception ex)
         {
-            Status($"Ошибка загрузки списка: {ex.Message}");
+            Status($"Ошибка загрузки каталога: {ex.Message}");
         }
+    }
+
+    private void BuildCategoryShowcases()
+    {
+        CategoryShowcasePanel.Children.Clear();
+        var groups = _products
+            .GroupBy(x => x.Category)
+            .OrderBy(g => g.Key)
+            .Take(6)
+            .ToList();
+
+        foreach (var group in groups)
+        {
+            var card = new Border
+            {
+                Width = 220,
+                Margin = new Thickness(0, 0, 12, 12),
+                Padding = new Thickness(12),
+                CornerRadius = new CornerRadius(16),
+                Background = new SolidColorBrush(Color.FromRgb(255, 255, 255))
+            };
+
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock
+            {
+                Text = group.Key,
+                FontWeight = FontWeights.Bold,
+                FontSize = 16,
+                Foreground = (Brush)FindResource("InkBrush")
+            });
+
+            foreach (var product in group.Take(4))
+            {
+                var button = new Button
+                {
+                    Content = $"{product.Name} • {product.PriceTitle}",
+                    Tag = product.Id,
+                    Background = Brushes.Transparent,
+                    Foreground = new SolidColorBrush(Color.FromRgb(54, 67, 75)),
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(2, 6, 2, 6),
+                    Margin = new Thickness(0, 4, 0, 0)
+                };
+                button.Click += ShelfProduct_Click;
+                stack.Children.Add(button);
+            }
+
+            card.Child = stack;
+            CategoryShowcasePanel.Children.Add(card);
+        }
+    }
+
+    private void ShelfProduct_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not int productId)
+        {
+            return;
+        }
+
+        var product = _products.FirstOrDefault(x => x.Id == productId);
+        if (product is null)
+        {
+            return;
+        }
+
+        ProductsGrid.SelectedItem = product;
+        ProductsGrid.ScrollIntoView(product);
+        ShowProduct(product);
+    }
+
+    private void RefreshOrders()
+    {
+        _orders.Clear();
+        if (_currentUser.Role != UserRole.Client)
+        {
+            return;
+        }
+
+        foreach (var order in _database.GetOrders(_currentUser))
+        {
+            _orders.Add(order);
+        }
+    }
+
+    private void RefreshManagerData()
+    {
+        _supplyRequests.Clear();
+        if (_currentUser.Role != UserRole.Manager)
+        {
+            return;
+        }
+
+        foreach (var item in _database.GetSupplyRequests(_currentUser))
+        {
+            _supplyRequests.Add(item);
+        }
+    }
+
+    private void RefreshAdminData()
+    {
+        if (_currentUser.Role != UserRole.Admin)
+        {
+            return;
+        }
+
+        var summary = _database.GetDashboardSummary(_currentUser);
+        KpiClients.Text = summary.TotalClients.ToString(CultureInfo.InvariantCulture);
+        KpiOrders.Text = summary.OpenOrders.ToString(CultureInfo.InvariantCulture);
+        KpiSupply.Text = summary.OpenSupplyRequests.ToString(CultureInfo.InvariantCulture);
+
+        _employees.Clear();
+        foreach (var employee in _database.GetEmployees())
+        {
+            _employees.Add(employee);
+        }
+
+        _clients.Clear();
+        foreach (var client in _database.GetClients())
+        {
+            _clients.Add(client);
+        }
+
+        _activityLogs.Clear();
+        foreach (var item in _database.GetActivityLogs())
+        {
+            _activityLogs.Add(item);
+        }
+    }
+
+    private void SyncProductPickers()
+    {
+        SupplyProductBox.ItemsSource = _products.ToList();
     }
 
     private void ProductsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ProductsGrid.SelectedItem is not Product product) return;
+        if (ProductsGrid.SelectedItem is not Product product)
+        {
+            return;
+        }
+
         ShowProduct(product);
         FillEditor(product);
+        SupplyProductBox.SelectedItem = _products.FirstOrDefault(x => x.Id == product.Id);
     }
 
     private void ShowProduct(Product product)
     {
         ProductTitle.Text = product.Name;
-        ProductInfo.Text = $"Категория: {product.Category}\nАптека: {product.Pharmacy}\nПроизводитель: {product.Manufacturer}\nФорма: {product.Form}\nУсловие отпуска: {product.PrescriptionTitle}\nЦена: {product.PriceTitle}\nОстаток: {product.Stock}\n\n{product.Description}";
+        ProductInfo.Text = $"Категория: {product.Category}\n" +
+                           $"Аптека: {product.Pharmacy}\n" +
+                           $"Производитель: {product.Manufacturer}\n" +
+                           $"Форма: {product.Form}\n" +
+                           $"Условие отпуска: {product.PrescriptionTitle}\n" +
+                           $"Цена: {product.PriceTitle}\n" +
+                           $"Остаток: {product.Stock}\n\n{product.Description}";
     }
 
     private void AddToCart_Click(object sender, RoutedEventArgs e)
     {
-        AddSelectedProductToCart();
-    }
-
-    private void AddToCart_Click(object sender, MouseButtonEventArgs e)
-    {
-        AddSelectedProductToCart();
-    }
-
-    private void AddSelectedProductToCart()
-    {
         try
         {
+            if (_currentUser.Role != UserRole.Client)
+            {
+                throw new InvalidOperationException("Корзина доступна только зарегистрированному клиенту.");
+            }
+
             if (ProductsGrid.SelectedItem is not Product product)
             {
-                throw new InvalidOperationException("Сначала выберите товар.");
+                throw new InvalidOperationException("Сначала выберите препарат.");
             }
 
             if (!int.TryParse(QuantityBox.Text, out var quantity) || quantity <= 0)
@@ -168,7 +411,12 @@ public partial class MainWindow : Window
 
             if (quantity > product.Stock)
             {
-                throw new InvalidOperationException("Нельзя добавить больше, чем есть на складе.");
+                throw new InvalidOperationException("Нельзя добавить больше, чем есть в наличии.");
+            }
+
+            if (_cart.Any() && _cart.Any(x => x.Product.PharmacyId != product.PharmacyId))
+            {
+                throw new InvalidOperationException("В корзине могут быть товары только одной аптеки.");
             }
 
             var existing = _cart.FirstOrDefault(x => x.Product.Id == product.Id);
@@ -205,12 +453,16 @@ public partial class MainWindow : Window
     {
         try
         {
-            var id = _database.CreateOrder(_currentUser, _cart);
+            var deliveryMethod = MapDeliveryMethod((DeliveryMethodBox.SelectedItem as ComboBoxItem)?.Content?.ToString());
+            var paymentMethod = MapPaymentMethod((PaymentMethodBox.SelectedItem as ComboBoxItem)?.Content?.ToString());
+            var id = _database.CreateOrder(_currentUser, _cart, deliveryMethod, paymentMethod, OrderCommentBox.Text);
             _cart.Clear();
             UpdateCartTotal();
-            RefreshProducts();
-            Status($"Заказ #{id} оформлен. Статус: Новый.");
-            MessageBox.Show("Заказ сохранён в базе данных.", "Заказ оформлен", MessageBoxButton.OK, MessageBoxImage.Information);
+            OrderCommentBox.Text = string.Empty;
+            RefreshAll();
+            WorkspaceTabs.SelectedItem = ClientOrdersTab;
+            Status($"Заказ оформлен. Идентификатор: {id}.");
+            MessageBox.Show("Заказ сохранён. Смотрите его во вкладке заказов.", "Заказ оформлен", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
@@ -222,52 +474,70 @@ public partial class MainWindow : Window
     {
         _editingProductId = 0;
         EditName.Text = string.Empty;
-        EditCategory.Text = string.Empty;
-        EditPharmacy.Text = string.Empty;
-        EditManufacturer.Text = string.Empty;
-        EditForm.Text = string.Empty;
         EditPrice.Text = string.Empty;
-        EditStock.Text = string.Empty;
-        EditPrescription.IsChecked = false;
+        EditStock.Text = "0";
         EditDescription.Text = string.Empty;
-        Status("Форма очищена для добавления нового товара.");
+        EditPrescription.IsChecked = false;
+        EditCategoryBox.SelectedIndex = -1;
+        EditManufacturerBox.SelectedIndex = -1;
+        EditFormBox.SelectedIndex = -1;
+        if (_currentUser.Role == UserRole.Manager)
+        {
+            SelectLookupById(EditPharmacyBox, _currentUser.AssignedPharmacyId);
+        }
+        else
+        {
+            EditPharmacyBox.SelectedIndex = -1;
+        }
+
+        Status("Форма очищена для нового товара.");
     }
 
     private void SaveProduct_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            EnsureCanManageProducts();
             if (!decimal.TryParse(EditPrice.Text.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var price))
             {
                 throw new InvalidOperationException("Цена заполнена неверно.");
             }
+
             if (!int.TryParse(EditStock.Text, out var stock))
             {
                 throw new InvalidOperationException("Остаток заполнен неверно.");
             }
 
+            var category = GetSelectedLookup(EditCategoryBox, "категорию");
+            var manufacturer = GetSelectedLookup(EditManufacturerBox, "производителя");
+            var form = GetSelectedLookup(EditFormBox, "форму выпуска");
+            var pharmacy = GetSelectedLookup(EditPharmacyBox, "аптеку");
+
             var product = new Product
             {
                 Id = _editingProductId,
                 Name = EditName.Text,
-                Category = EditCategory.Text,
-                Pharmacy = EditPharmacy.Text,
-                Manufacturer = EditManufacturer.Text,
-                Form = EditForm.Text,
+                CategoryId = category.Id,
+                Category = category.Name,
+                ManufacturerId = manufacturer.Id,
+                Manufacturer = manufacturer.Name,
+                FormId = form.Id,
+                Form = form.Name,
+                PharmacyId = pharmacy.Id,
+                Pharmacy = pharmacy.Name,
                 Price = price,
                 Stock = stock,
                 PrescriptionRequired = EditPrescription.IsChecked == true,
                 Description = EditDescription.Text
             };
-            _database.SaveProduct(product);
-            LoadFilters();
-            RefreshProducts();
-            Status(product.Id == 0 ? "Товар добавлен." : "Товар обновлён.");
+
+            _database.SaveProduct(product, _currentUser);
+            LoadLookups();
+            RefreshAll();
+            Status(product.Id == 0 ? "Новый товар добавлен." : "Товар обновлён.");
         }
         catch (Exception ex)
         {
-            Status($"Ошибка сохранения: {ex.Message}");
+            Status($"Ошибка сохранения товара: {ex.Message}");
         }
     }
 
@@ -275,24 +545,24 @@ public partial class MainWindow : Window
     {
         try
         {
-            EnsureCanManageProducts();
             if (ProductsGrid.SelectedItem is not Product product)
             {
-                throw new InvalidOperationException("Выберите товар для удаления.");
+                throw new InvalidOperationException("Выберите товар, который нужно скрыть.");
             }
-            if (MessageBox.Show($"Удалить товар '{product.Name}'?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+
+            if (MessageBox.Show($"Скрыть товар '{product.Name}' из каталога?", "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             {
                 return;
             }
 
-            _database.DeleteProduct(product.Id);
-            RefreshProducts();
+            _database.DeleteProduct(product.Id, _currentUser);
+            RefreshAll();
             NewProduct_Click(sender, e);
-            Status("Товар удалён.");
+            Status("Товар скрыт из каталога.");
         }
         catch (Exception ex)
         {
-            Status($"Ошибка удаления: {ex.Message}");
+            Status($"Ошибка изменения товара: {ex.Message}");
         }
     }
 
@@ -300,14 +570,125 @@ public partial class MainWindow : Window
     {
         _editingProductId = product.Id;
         EditName.Text = product.Name;
-        EditCategory.Text = product.Category;
-        EditPharmacy.Text = product.Pharmacy;
-        EditManufacturer.Text = product.Manufacturer;
-        EditForm.Text = product.Form;
         EditPrice.Text = product.Price.ToString(CultureInfo.InvariantCulture);
         EditStock.Text = product.Stock.ToString(CultureInfo.InvariantCulture);
-        EditPrescription.IsChecked = product.PrescriptionRequired;
         EditDescription.Text = product.Description;
+        EditPrescription.IsChecked = product.PrescriptionRequired;
+        SelectLookupById(EditCategoryBox, product.CategoryId);
+        SelectLookupById(EditManufacturerBox, product.ManufacturerId);
+        SelectLookupById(EditFormBox, product.FormId);
+        SelectLookupById(EditPharmacyBox, product.PharmacyId);
+    }
+
+    private void CreateSupplyRequest_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var product = SupplyProductBox.SelectedItem as Product ?? throw new InvalidOperationException("Выберите товар для заявки.");
+            var supplier = GetSelectedLookup(SupplySupplierBox, "поставщика");
+            var pharmacy = GetSelectedLookup(SupplyPharmacyBox, "аптеку");
+            if (!int.TryParse(SupplyQuantityBox.Text, out var quantity))
+            {
+                throw new InvalidOperationException("Количество в заявке заполнено неверно.");
+            }
+
+            var priority = (SupplyPriorityBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Средний";
+            var neededBy = SupplyNeededDatePicker.SelectedDate ?? DateTime.Today.AddDays(3);
+            _database.CreateSupplyRequest(_currentUser, product.Id, supplier.Id, pharmacy.Id, quantity, priority, neededBy, SupplyCommentBox.Text);
+            SupplyCommentBox.Text = string.Empty;
+            SupplyQuantityBox.Text = "10";
+            RefreshManagerData();
+            RefreshAdminData();
+            Status("Заявка на поставку создана.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка создания поставки: {ex.Message}");
+        }
+    }
+
+    private void CreateEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var roleName = (NewEmployeeRoleBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Manager";
+            var role = roleName == "Admin" ? UserRole.Admin : UserRole.Manager;
+            int? pharmacyId = null;
+            if (role == UserRole.Manager)
+            {
+                pharmacyId = GetSelectedLookup(NewEmployeePharmacyBox, "аптеку для менеджера").Id;
+            }
+
+            _database.CreateEmployee(
+                _currentUser,
+                role,
+                NewEmployeeLoginBox.Text,
+                NewEmployeePasswordBox.Password,
+                NewEmployeeNameBox.Text,
+                NewEmployeePhoneBox.Text,
+                NewEmployeeEmailBox.Text,
+                pharmacyId);
+
+            NewEmployeeNameBox.Text = string.Empty;
+            NewEmployeeLoginBox.Text = string.Empty;
+            NewEmployeePasswordBox.Password = string.Empty;
+            NewEmployeePhoneBox.Text = string.Empty;
+            NewEmployeeEmailBox.Text = string.Empty;
+            NewEmployeePharmacyBox.SelectedIndex = -1;
+            RefreshAdminData();
+            Status("Новый сотрудник создан.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка создания сотрудника: {ex.Message}");
+        }
+    }
+
+    private void ActivateEmployee_Click(object sender, RoutedEventArgs e) => ChangeEmployeeStatus("Active");
+
+    private void DismissEmployee_Click(object sender, RoutedEventArgs e) => ChangeEmployeeStatus("Dismissed");
+
+    private void BlockEmployee_Click(object sender, RoutedEventArgs e) => ChangeEmployeeStatus("Blocked");
+
+    private void ChangeEmployeeStatus(string statusName)
+    {
+        try
+        {
+            if (EmployeesGrid.SelectedItem is not EmployeeSummary employee)
+            {
+                throw new InvalidOperationException("Выберите сотрудника в таблице.");
+            }
+
+            _database.ChangeEmployeeStatus(_currentUser, employee.Id, statusName);
+            RefreshAdminData();
+            Status($"Статус сотрудника обновлён: {statusName}.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка изменения статуса: {ex.Message}");
+        }
+    }
+
+    private static LookupItem GetSelectedLookup(ComboBox comboBox, string caption)
+    {
+        if (comboBox.SelectedItem is not LookupItem item || item.Id <= 0)
+        {
+            throw new InvalidOperationException($"Выберите {caption}.");
+        }
+
+        return item;
+    }
+
+    private static void SelectLookupById(ComboBox comboBox, int id)
+    {
+        foreach (var item in comboBox.Items)
+        {
+            if (item is LookupItem lookup && lookup.Id == id)
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
+        }
     }
 
     private void UpdateCartTotal()
@@ -315,13 +696,18 @@ public partial class MainWindow : Window
         CartTotal.Text = $"Итого: {_cart.Sum(x => x.Total):N2} ₽";
     }
 
-    private void EnsureCanManageProducts()
+    private static string MapDeliveryMethod(string? value) => value switch
     {
-        if (_currentUser.Role is not (UserRole.Admin or UserRole.Pharmacist))
-        {
-            throw new InvalidOperationException("Добавление, редактирование и удаление доступны только админу или фармацевту.");
-        }
-    }
+        "Курьер" => "Courier",
+        _ => "Pickup"
+    };
+
+    private static string MapPaymentMethod(string? value) => value switch
+    {
+        "Карта" => "Card",
+        "Наличные" => "Cash",
+        _ => "CashOnDelivery"
+    };
 
     private void Status(string message)
     {

@@ -3,6 +3,10 @@
 public sealed class Product
 {
     public int Id { get; set; }
+    public int CategoryId { get; set; }
+    public int PharmacyId { get; set; }
+    public int ManufacturerId { get; set; }
+    public int FormId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Pharmacy { get; set; } = string.Empty;
