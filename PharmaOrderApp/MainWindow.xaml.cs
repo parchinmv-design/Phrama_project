@@ -2,6 +2,7 @@ using PharmaOrderApp.Models;
 using PharmaOrderApp.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -20,6 +21,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ActivityLogEntry> _activityLogs = new();
     private User _currentUser = new() { FullName = "Гость", Login = "guest", Role = UserRole.Guest };
     private int _editingProductId;
+    private int? _editingEmployeeId;
     private bool _ready;
 
     public MainWindow()
@@ -82,11 +84,18 @@ public partial class MainWindow : Window
     {
         try
         {
+            var phone = RegisterPhoneBox.Text.Trim();
+            if (!IsValidPhone(phone))
+            {
+                RegisterMessage.Text = "Неверный формат телефона. Номер должен начинаться с +7 или 8 и содержать 11 цифр.";
+                return;
+            }
+
             _database.RegisterClient(
                 RegisterLoginBox.Text,
                 RegisterPasswordBox.Password,
                 RegisterFullNameBox.Text,
-                RegisterPhoneBox.Text,
+                phone,
                 RegisterEmailBox.Text);
 
             RegisterMessage.Text = "Клиент зарегистрирован. Можно входить под новой учётной записью.";
@@ -619,13 +628,20 @@ public partial class MainWindow : Window
                 pharmacyId = GetSelectedLookup(NewEmployeePharmacyBox, "аптеку для менеджера").Id;
             }
 
+            var phone = NewEmployeePhoneBox.Text.Trim();
+            if (!IsValidPhone(phone))
+            {
+                Status("Неверный формат телефона. Номер должен начинаться с +7 или 8 и содержать 11 цифр.");
+                return;
+            }
+
             _database.CreateEmployee(
                 _currentUser,
                 role,
                 NewEmployeeLoginBox.Text,
                 NewEmployeePasswordBox.Password,
                 NewEmployeeNameBox.Text,
-                NewEmployeePhoneBox.Text,
+                phone,
                 NewEmployeeEmailBox.Text,
                 pharmacyId);
 
@@ -669,6 +685,89 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EmployeesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (EmployeesGrid.SelectedItem is not EmployeeSummary employee)
+        {
+            return;
+        }
+
+        _editingEmployeeId = employee.Id;
+        EditEmployeeFullNameBox.Text = employee.FullName;
+        EditEmployeeLoginBox.Text = employee.Login;
+        EditEmployeePasswordBox.Password = string.Empty;
+        EditEmployeePhoneBox.Text = employee.Phone;
+        EditEmployeeEmailBox.Text = employee.Email;
+
+        var pharmacy = _database.GetPharmacies().FirstOrDefault(p => employee.Pharmacy.Contains(p.Name));
+        if (pharmacy != null)
+        {
+            EditEmployeePharmacyBox.SelectedItem = pharmacy;
+        }
+        else
+        {
+            EditEmployeePharmacyBox.SelectedIndex = -1;
+        }
+
+        Status($"Выбран сотрудник для редактирования: {employee.FullName}.");
+    }
+
+    private void SaveEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_editingEmployeeId == null)
+            {
+                throw new InvalidOperationException("Выберите сотрудника для редактирования.");
+            }
+
+            var phone = EditEmployeePhoneBox.Text.Trim();
+            if (!IsValidPhone(phone))
+            {
+                Status("Неверный формат телефона. Номер должен начинаться с +7 или 8 и содержать 11 цифр.");
+                return;
+            }
+
+            var pharmacyId = EditEmployeePharmacyBox.SelectedItem is LookupItem lookup && lookup.Id > 0 ? lookup.Id : (int?)null;
+
+            _database.UpdateEmployee(
+                _currentUser,
+                _editingEmployeeId.Value,
+                EditEmployeeFullNameBox.Text,
+                EditEmployeeLoginBox.Text,
+                string.IsNullOrEmpty(EditEmployeePasswordBox.Password) ? null : EditEmployeePasswordBox.Password,
+                phone,
+                EditEmployeeEmailBox.Text,
+                pharmacyId);
+
+            RefreshAdminData();
+            CancelEditEmployeeFields();
+            Status("Данные сотрудника обновлены.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка сохранения: {ex.Message}");
+        }
+    }
+
+    private void CancelEditEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        CancelEditEmployeeFields();
+        Status("Редактирование отменено.");
+    }
+
+    private void CancelEditEmployeeFields()
+    {
+        _editingEmployeeId = null;
+        EditEmployeeFullNameBox.Text = string.Empty;
+        EditEmployeeLoginBox.Text = string.Empty;
+        EditEmployeePasswordBox.Password = string.Empty;
+        EditEmployeePhoneBox.Text = string.Empty;
+        EditEmployeeEmailBox.Text = string.Empty;
+        EditEmployeePharmacyBox.SelectedIndex = -1;
+        EmployeesGrid.SelectedItem = null;
+    }
+
     private static LookupItem GetSelectedLookup(ComboBox comboBox, string caption)
     {
         if (comboBox.SelectedItem is not LookupItem item || item.Id <= 0)
@@ -689,6 +788,44 @@ public partial class MainWindow : Window
                 return;
             }
         }
+    }
+
+    private static bool IsValidPhone(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return false;
+        }
+
+        // Проверка на наличие букв (недопустимы)
+        if (Regex.IsMatch(phone, @"[a-zA-Zа-яА-ЯёЁ]"))
+        {
+            return false;
+        }
+
+        var digitsOnly = Regex.Replace(phone, @"\D", "");
+        
+        if (digitsOnly.Length != 11)
+        {
+            return false;
+        }
+
+        if (!Regex.IsMatch(digitsOnly, @"^[78]\d{10}$"))
+        {
+            return false;
+        }
+
+        if (phone.StartsWith("+"))
+        {
+            return phone.StartsWith("+7") && digitsOnly.Length == 11;
+        }
+
+        if (phone.StartsWith("8"))
+        {
+            return digitsOnly.Length == 11;
+        }
+
+        return false;
     }
 
     private void UpdateCartTotal()

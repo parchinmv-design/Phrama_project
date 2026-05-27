@@ -689,6 +689,64 @@ public sealed class DatabaseService
         transaction.Commit();
     }
 
+    public void UpdateEmployee(User actor, int employeeId, string fullName, string login, string? password, string phone, string email, int? pharmacyId)
+    {
+        if (actor.Role != UserRole.Admin)
+        {
+            throw new InvalidOperationException("Только администратор может редактировать сотрудников.");
+        }
+
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            throw new InvalidOperationException("ФИО сотрудника обязательно.");
+        }
+
+        if (string.IsNullOrWhiteSpace(login) || login.Trim().Length < 4)
+        {
+            throw new InvalidOperationException("Логин должен содержать минимум 4 символа.");
+        }
+
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+
+        // Проверка: логин не должен быть занят другим пользователем
+        using var checkCommand = connection.CreateCommand();
+        checkCommand.Transaction = transaction;
+        checkCommand.CommandText = "SELECT id FROM users WHERE lower(login) = lower($login) AND id != $userId;";
+        checkCommand.Parameters.AddWithValue("$login", login.Trim());
+        checkCommand.Parameters.AddWithValue("$userId", employeeId);
+        var existingId = checkCommand.ExecuteScalar();
+        if (existingId is not null)
+        {
+            throw new InvalidOperationException("Такой логин уже занят другим пользователем.");
+        }
+
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            UPDATE users
+            SET full_name = $fullName,
+                login = $login,
+                phone = $phone,
+                email = $email,
+                assigned_pharmacy_id = CASE WHEN $pharmacyId > 0 THEN $pharmacyId ELSE assigned_pharmacy_id END,
+                password = CASE WHEN $password IS NOT NULL AND length($password) > 0 THEN $password ELSE password END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $userId;
+            """;
+        command.Parameters.AddWithValue("$fullName", fullName);
+        command.Parameters.AddWithValue("$login", login.Trim());
+        command.Parameters.AddWithValue("$phone", phone);
+        command.Parameters.AddWithValue("$email", email);
+        command.Parameters.AddWithValue("$pharmacyId", pharmacyId ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$password", string.IsNullOrEmpty(password) ? (object)DBNull.Value : password!);
+        command.Parameters.AddWithValue("$userId", employeeId);
+        command.ExecuteNonQuery();
+
+        LogAudit(connection, transaction, actor.Id, "update_employee", "users", employeeId, $"Сотрудник {fullName} обновлён.");
+        transaction.Commit();
+    }
+
     public List<ClientSummary> GetClients()
     {
         using var connection = OpenConnection();

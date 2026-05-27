@@ -1,7 +1,40 @@
-﻿bin/
+```
+# Build artifacts
+bin/
 obj/
+*.exe
+*.dll
+*.pdb
+*.userprefs
+*.cache
+*.log
+
+# Dependencies
+packages/
+node_modules/
+.nuget/
+
+# IDE specific
 .vs/
 *.user
 *.suo
-*.db
-*.sqlite
+*.userosscache
+*.sln.docstates
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# Test and coverage
+TestResults/
+coverage/
+*.coverage
+```

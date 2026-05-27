@@ -421,6 +421,29 @@
                                         </StackPanel>
                                     </Border>
 
+                                    <Border Background="White" CornerRadius="18" Padding="16" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Редактирование сотрудника" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                            <TextBlock Text="Выберите сотрудника в таблице для редактирования." TextWrapping="Wrap" Foreground="#5E6A73" Margin="0,6,0,10" />
+                                            <TextBlock Text="ФИО" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeFullNameBox" ToolTip="ФИО сотрудника" />
+                                            <TextBlock Text="Логин" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeLoginBox" ToolTip="Логин" />
+                                            <TextBlock Text="Пароль (оставьте пустым, чтобы не менять)" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <PasswordBox x:Name="EditEmployeePasswordBox" ToolTip="Пароль" />
+                                            <TextBlock Text="Телефон" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeePhoneBox" ToolTip="Телефон" />
+                                            <TextBlock Text="Email" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeEmailBox" ToolTip="Email" />
+                                            <TextBlock Text="Закреплённая аптека" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <ComboBox x:Name="EditEmployeePharmacyBox" DisplayMemberPath="Name" />
+                                            <WrapPanel Margin="0,8,0,0">
+                                                <Button Content="Сохранить изменения" Click="SaveEmployee_Click" />
+                                                <Button Content="Отмена" Background="#6C757D" Click="CancelEditEmployee_Click" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+
                                     <Border Background="#EEF7F5" CornerRadius="18" Padding="16">
                                         <TextBlock Text="Администратор здесь не покупает лекарства. Он управляет людьми, контролирует процессы и следит за состоянием сети." TextWrapping="Wrap" Foreground="#44545A" />
                                     </Border>
