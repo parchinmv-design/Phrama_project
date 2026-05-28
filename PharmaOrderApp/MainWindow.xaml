@@ -240,12 +240,13 @@
 
                         <Border Grid.Column="0" Background="White" CornerRadius="20" Padding="16" Margin="0,0,10,0">
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Top"
-                                           Text="Заявки на поставки и контроль ассортимента"
-                                           FontSize="24"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource InkBrush}"
-                                           Margin="0,0,0,12" />
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                    <TextBlock Text="Заявки на поставки и контроль ассортимента"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource InkBrush}" />
+                                    <TextBlock x:Name="ManagerPharmacyInfo" Text="" FontSize="14" Foreground="#5E6A73" Margin="0,4,0,0" />
+                                </StackPanel>
                                 <DataGrid x:Name="SupplyGrid" AutoGenerateColumns="False" IsReadOnly="True">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Заявка" Binding="{Binding Number}" Width="0.9*" />
@@ -261,51 +262,72 @@
                             </DockPanel>
                         </Border>
 
-                        <StackPanel Grid.Column="1">
-                            <Border Background="White" CornerRadius="20" Padding="16" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <TextBlock Text="Создать новую заявку" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
-                                    <ComboBox x:Name="SupplyProductBox" DisplayMemberPath="Name" />
-                                    <ComboBox x:Name="SupplySupplierBox" DisplayMemberPath="Name" />
-                                    <ComboBox x:Name="SupplyPharmacyBox" DisplayMemberPath="Name" />
-                                    <TextBox x:Name="SupplyQuantityBox" ToolTip="Количество" Text="10" />
-                                    <ComboBox x:Name="SupplyPriorityBox">
-                                        <ComboBoxItem Content="Высокий" />
-                                        <ComboBoxItem Content="Средний" IsSelected="True" />
-                                        <ComboBoxItem Content="Низкий" />
-                                    </ComboBox>
-                                    <DatePicker x:Name="SupplyNeededDatePicker" SelectedDate="{x:Static sys:DateTime.Now}" />
-                                    <TextBox x:Name="SupplyCommentBox" Height="64" AcceptsReturn="True" TextWrapping="Wrap" ToolTip="Комментарий к поставке" />
-                                    <Button Content="Создать заявку" Click="CreateSupplyRequest_Click" />
-                                </StackPanel>
-                            </Border>
-
-                            <Border Background="White" CornerRadius="20" Padding="16" Margin="0,0,0,10">
-                                <StackPanel>
-                                    <TextBlock Text="Редактор ассортимента своей аптеки" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
-                                    <TextBox x:Name="EditName" ToolTip="Название" />
-                                    <ComboBox x:Name="EditCategoryBox" DisplayMemberPath="Name" />
-                                    <ComboBox x:Name="EditManufacturerBox" DisplayMemberPath="Name" />
-                                    <ComboBox x:Name="EditFormBox" DisplayMemberPath="Name" />
-                                    <ComboBox x:Name="EditPharmacyBox" DisplayMemberPath="Name" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBox x:Name="EditPrice" Width="100" ToolTip="Цена" />
-                                        <TextBox x:Name="EditStock" Width="100" ToolTip="Остаток" />
-                                        <CheckBox x:Name="EditPrescription" Content="По рецепту" VerticalAlignment="Center" Margin="8,0" />
+                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Border Background="White" CornerRadius="20" Padding="16" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Создать новую заявку" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                        <TextBlock Text="Товар" FontWeight="SemiBold" Margin="4,10,4,0" />
+                                        <ComboBox x:Name="SupplyProductBox" DisplayMemberPath="Name" ToolTip="Выберите товар для поставки" />
+                                        <TextBlock Text="Поставщик" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="SupplySupplierBox" DisplayMemberPath="Name" ToolTip="Выберите поставщика" />
+                                        <TextBlock Text="Аптека" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="SupplyPharmacyBox" DisplayMemberPath="Name" ToolTip="Аптека получения" />
+                                        <TextBlock Text="Количество" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <TextBox x:Name="SupplyQuantityBox" ToolTip="Количество единиц товара" Text="10" />
+                                        <TextBlock Text="Приоритет" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="SupplyPriorityBox" ToolTip="Приоритет доставки">
+                                            <ComboBoxItem Content="Высокий" />
+                                            <ComboBoxItem Content="Средний" IsSelected="True" />
+                                            <ComboBoxItem Content="Низкий" />
+                                        </ComboBox>
+                                        <TextBlock Text="Нужно к дате" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <DatePicker x:Name="SupplyNeededDatePicker" ToolTip="Крайний срок поставки" SelectedDate="{x:Static sys:DateTime.Now}" />
+                                        <TextBlock Text="Комментарий" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <TextBox x:Name="SupplyCommentBox" Height="64" AcceptsReturn="True" TextWrapping="Wrap" ToolTip="Дополнительная информация к заявке" />
+                                        <Button Content="Создать заявку" Click="CreateSupplyRequest_Click" ToolTip="Отправить заявку на поставку выбранного товара" Margin="0,10,0,0" />
                                     </StackPanel>
-                                    <TextBox x:Name="EditDescription" Height="70" TextWrapping="Wrap" AcceptsReturn="True" ToolTip="Описание" />
-                                    <WrapPanel>
-                                        <Button Content="Новый товар" Background="#6C757D" Click="NewProduct_Click" />
-                                        <Button Content="Сохранить" Click="SaveProduct_Click" />
-                                        <Button Content="Скрыть" Background="#C1121F" Click="DeleteProduct_Click" />
-                                    </WrapPanel>
-                                </StackPanel>
-                            </Border>
+                                </Border>
 
-                            <Border Background="#EEF7F5" CornerRadius="20" Padding="16">
-                                <TextBlock Text="Менеджер здесь работает только с поставками и ассортиментом своей аптеки. Клиентские каталоги и заказы ему не мешают." TextWrapping="Wrap" Foreground="#44545A" />
-                            </Border>
-                        </StackPanel>
+                                <Border Background="White" CornerRadius="20" Padding="16" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="Редактор ассортимента" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                        <TextBlock Text="Название товара" FontWeight="SemiBold" Margin="4,10,4,0" />
+                                        <TextBox x:Name="EditName" ToolTip="Название медикамента" />
+                                        <TextBlock Text="Категория" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="EditCategoryBox" DisplayMemberPath="Name" ToolTip="Категория товара" />
+                                        <TextBlock Text="Производитель" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="EditManufacturerBox" DisplayMemberPath="Name" ToolTip="Производитель товара" />
+                                        <TextBlock Text="Форма выпуска" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="EditFormBox" DisplayMemberPath="Name" ToolTip="Форма выпуска" />
+                                        <TextBlock Text="Аптека" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <ComboBox x:Name="EditPharmacyBox" DisplayMemberPath="Name" ToolTip="Аптека хранения" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <StackPanel Width="100" Margin="0,0,8,0">
+                                                <TextBlock Text="Цена" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                                <TextBox x:Name="EditPrice" ToolTip="Цена в рублях" />
+                                            </StackPanel>
+                                            <StackPanel Width="100">
+                                                <TextBlock Text="Остаток" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                                <TextBox x:Name="EditStock" ToolTip="Количество на складе" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="EditPrescription" Content="По рецепту" VerticalAlignment="Center" Margin="16,22,0,0" ToolTip="Товар отпускается по рецепту" />
+                                        </StackPanel>
+                                        <TextBlock Text="Описание" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                        <TextBox x:Name="EditDescription" Height="70" TextWrapping="Wrap" AcceptsReturn="True" ToolTip="Описание товара" />
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Button Content="Новый товар" Background="#6C757D" Click="NewProduct_Click" ToolTip="Создать новый товар в каталоге аптеки" Margin="0,0,6,0" />
+                                            <Button Content="Сохранить" Click="SaveProduct_Click" ToolTip="Сохранить изменения в выбранном товаре" Margin="0,0,6,0" />
+                                            <Button Content="Скрыть" Background="#C1121F" Click="DeleteProduct_Click" ToolTip="Скрыть товар из каталога (не удалять из БД)" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="#EEF7F5" CornerRadius="20" Padding="16">
+                                    <TextBlock Text="Менеджер работает только с поставками и ассортиментом своей аптеки. Клиентские каталоги и заказы ему не мешают." TextWrapping="Wrap" Foreground="#44545A" />
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </TabItem>
 

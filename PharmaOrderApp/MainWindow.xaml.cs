@@ -147,6 +147,7 @@ public partial class MainWindow : Window
         {
             SelectLookupById(EditPharmacyBox, _currentUser.AssignedPharmacyId);
             SelectLookupById(SupplyPharmacyBox, _currentUser.AssignedPharmacyId);
+            ManagerPharmacyInfo.Text = $"Закреплённая аптека: {_currentUser.AssignedPharmacyName}";
         }
 
         RefreshButton.Content = _currentUser.Role switch
@@ -587,9 +588,9 @@ public partial class MainWindow : Window
             var product = SupplyProductBox.SelectedItem as Product ?? throw new InvalidOperationException("Выберите товар для заявки.");
             var supplier = GetSelectedLookup(SupplySupplierBox, "поставщика");
             var pharmacy = GetSelectedLookup(SupplyPharmacyBox, "аптеку");
-            if (!int.TryParse(SupplyQuantityBox.Text, out var quantity))
+            if (!int.TryParse(SupplyQuantityBox.Text, out var quantity) || quantity <= 0)
             {
-                throw new InvalidOperationException("Количество в заявке заполнено неверно.");
+                throw new InvalidOperationException("Количество в заявке должно быть больше нуля.");
             }
 
             var priority = (SupplyPriorityBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Средний";
