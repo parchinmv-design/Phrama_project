@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using PharmaOrderApp.Models;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace PharmaOrderApp.Services;
 
@@ -585,11 +586,15 @@ public sealed class DatabaseService
                    coalesce(ph.name, 'Без привязки'),
                    us.title,
                    u.email,
-                   u.phone
+                   u.phone,
+                   ep.personnel_number,
+                   ep.position_title,
+                   ep.salary
             FROM users u
             JOIN roles r ON r.id = u.role_id
             JOIN user_statuses us ON us.id = u.status_id
             LEFT JOIN pharmacies ph ON ph.id = u.assigned_pharmacy_id
+            LEFT JOIN employee_profiles ep ON ep.user_id = u.id
             WHERE r.name IN ('Admin', 'Manager')
             ORDER BY r.id DESC, u.full_name;
             """;
@@ -607,7 +612,10 @@ public sealed class DatabaseService
                 Pharmacy = reader.GetString(4),
                 StatusTitle = reader.GetString(5),
                 Email = reader.GetString(6),
-                Phone = reader.GetString(7)
+                Phone = reader.GetString(7),
+                PersonnelNumber = reader.IsDBNull(8) ? "" : reader.GetString(8),
+                PositionTitle = reader.IsDBNull(9) ? "" : reader.GetString(9),
+                Salary = reader.IsDBNull(10) ? 0 : reader.GetDecimal(10)
             });
         }
 
@@ -625,6 +633,18 @@ public sealed class DatabaseService
         {
             throw new InvalidOperationException("Можно создавать только администраторов и менеджеров.");
         }
+
+        ValidatePhone(phone);
+        ValidateEmail(email);
+
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new InvalidOperationException("ФИО не может быть пустым.");
+
+        if (string.IsNullOrWhiteSpace(login) || login.Length < 4)
+            throw new InvalidOperationException("Логин должен содержать минимум 4 символа.");
+
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 4)
+            throw new InvalidOperationException("Пароль должен содержать минимум 4 символа.");
 
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -686,6 +706,78 @@ public sealed class DatabaseService
         command.Parameters.AddWithValue("$userId", targetUserId);
         command.ExecuteNonQuery();
         LogAudit(connection, transaction, actor.Id, "change_employee_status", "users", targetUserId, $"Статус изменён на {statusName}.");
+        transaction.Commit();
+    }
+
+    private static void ValidatePhone(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return;
+
+        var cleaned = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+
+        if (!cleaned.StartsWith("+7") && !cleaned.StartsWith("8"))
+            throw new InvalidOperationException("Телефон должен начинаться с +7 или 8.");
+
+        if (cleaned.Length != 11)
+            throw new InvalidOperationException("Телефон должен содержать ровно 11 символов.");
+    }
+
+    private static void ValidateEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return;
+
+        var lower = email.ToLowerInvariant();
+        if (!lower.EndsWith("@gmail.com") && !lower.EndsWith("@mail.ru"))
+            throw new InvalidOperationException("Email должен быть в домене @gmail.com или @mail.ru.");
+    }
+
+    public void UpdateEmployee(User actor, int targetUserId, string fullName, string phone, string email, string positionTitle, decimal salary, int? pharmacyId)
+    {
+        if (actor.Role != UserRole.Admin)
+            throw new InvalidOperationException("Редактирование сотрудников доступно только администратору.");
+
+        ValidatePhone(phone);
+        ValidateEmail(email);
+
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new InvalidOperationException("ФИО не может быть пустым.");
+
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+
+        using var userCmd = connection.CreateCommand();
+        userCmd.Transaction = transaction;
+        userCmd.CommandText = """
+            UPDATE users
+            SET full_name = $fullName,
+                phone = $phone,
+                email = $email,
+                assigned_pharmacy_id = $pharmacyId
+            WHERE id = $userId;
+            """;
+        userCmd.Parameters.AddWithValue("$fullName", fullName);
+        userCmd.Parameters.AddWithValue("$phone", phone);
+        userCmd.Parameters.AddWithValue("$email", email);
+        userCmd.Parameters.AddWithValue("$pharmacyId", pharmacyId ?? (object)DBNull.Value);
+        userCmd.Parameters.AddWithValue("$userId", targetUserId);
+        userCmd.ExecuteNonQuery();
+
+        using var profileCmd = connection.CreateCommand();
+        profileCmd.Transaction = transaction;
+        profileCmd.CommandText = """
+            UPDATE employee_profiles
+            SET position_title = $positionTitle,
+                salary = $salary
+            WHERE user_id = $userId;
+            """;
+        profileCmd.Parameters.AddWithValue("$positionTitle", positionTitle);
+        profileCmd.Parameters.AddWithValue("$salary", salary);
+        profileCmd.Parameters.AddWithValue("$userId", targetUserId);
+        profileCmd.ExecuteNonQuery();
+
+        LogAudit(connection, transaction, actor.Id, "update_employee", "users", targetUserId, $"Сотрудник {fullName} обновлён.");
         transaction.Commit();
     }
 

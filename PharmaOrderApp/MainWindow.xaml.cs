@@ -669,6 +669,52 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EmployeesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (EmployeesGrid.SelectedItem is not EmployeeSummary employee)
+            return;
+
+        EditEmployeeNameBox.Text = employee.FullName;
+        EditEmployeePhoneBox.Text = employee.Phone;
+        EditEmployeeEmailBox.Text = employee.Email;
+        EditEmployeePositionBox.Text = employee.PositionTitle;
+        EditEmployeePersonnelBox.Text = employee.PersonnelNumber;
+        EditEmployeeSalaryBox.Text = employee.Salary.ToString();
+    }
+
+    private void UpdateEmployee_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (EmployeesGrid.SelectedItem is not EmployeeSummary employee)
+            {
+                throw new InvalidOperationException("Выберите сотрудника в таблице.");
+            }
+
+            if (!decimal.TryParse(EditEmployeeSalaryBox.Text, out var salary) || salary < 0)
+            {
+                throw new InvalidOperationException("Зарплата должна быть неотрицательным числом.");
+            }
+
+            _database.UpdateEmployee(
+                _currentUser,
+                employee.Id,
+                EditEmployeeNameBox.Text,
+                EditEmployeePhoneBox.Text,
+                EditEmployeeEmailBox.Text,
+                EditEmployeePositionBox.Text,
+                salary,
+                null);
+
+            RefreshAdminData();
+            Status($"Данные сотрудника {employee.FullName} обновлены.");
+        }
+        catch (Exception ex)
+        {
+            Status($"Ошибка обновления сотрудника: {ex.Message}");
+        }
+    }
+
     private static LookupItem GetSelectedLookup(ComboBox comboBox, string caption)
     {
         if (comboBox.SelectedItem is not LookupItem item || item.Id <= 0)

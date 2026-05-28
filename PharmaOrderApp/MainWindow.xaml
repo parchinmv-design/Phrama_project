@@ -343,13 +343,15 @@
                                     <Border Background="White" CornerRadius="18" Padding="16" Margin="0,0,10,10">
                                         <DockPanel>
                                             <TextBlock DockPanel.Dock="Top" Text="Сотрудники" FontSize="22" FontWeight="Bold" Foreground="{StaticResource InkBrush}" Margin="0,0,0,10" />
-                                            <DataGrid x:Name="EmployeesGrid" AutoGenerateColumns="False" IsReadOnly="True">
+                                            <DataGrid x:Name="EmployeesGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionChanged="EmployeesGrid_SelectionChanged">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="ФИО" Binding="{Binding FullName}" Width="1.2*" />
                                                     <DataGridTextColumn Header="Логин" Binding="{Binding Login}" Width="0.9*" />
                                                     <DataGridTextColumn Header="Роль" Binding="{Binding RoleTitle}" Width="0.8*" />
                                                     <DataGridTextColumn Header="Аптека" Binding="{Binding Pharmacy}" Width="1.0*" />
                                                     <DataGridTextColumn Header="Статус" Binding="{Binding StatusTitle}" Width="0.8*" />
+                                                    <DataGridTextColumn Header="Телефон" Binding="{Binding Phone}" Width="1.0*" />
+                                                    <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="1.0*" />
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </DockPanel>
@@ -418,6 +420,26 @@
                                             <Button Content="Активировать" Click="ActivateEmployee_Click" />
                                             <Button Content="Уволить" Background="#D97706" Click="DismissEmployee_Click" />
                                             <Button Content="Заблокировать" Background="#C1121F" Click="BlockEmployee_Click" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="White" CornerRadius="18" Padding="16" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Редактировать сотрудника" FontSize="21" FontWeight="Bold" Foreground="{StaticResource InkBrush}" />
+                                            <TextBlock Text="Выберите сотрудника в таблице для редактирования." TextWrapping="Wrap" Foreground="#5E6A73" Margin="0,6,0,10" />
+                                            <TextBlock Text="ФИО" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeNameBox" ToolTip="ФИО сотрудника" />
+                                            <TextBlock Text="Телефон" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeePhoneBox" ToolTip="Телефон (+7 или 8, 11 символов)" />
+                                            <TextBlock Text="Email" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeEmailBox" ToolTip="Email (@gmail.com или @mail.ru)" />
+                                            <TextBlock Text="Должность" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeePositionBox" ToolTip="Должность" />
+                                            <TextBlock Text="Табельный номер" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeePersonnelBox" IsReadOnly="True" Background="#F5F5F5" ToolTip="Табельный номер (авто)" />
+                                            <TextBlock Text="Зарплата" FontWeight="SemiBold" Margin="4,6,4,0" />
+                                            <TextBox x:Name="EditEmployeeSalaryBox" ToolTip="Зарплата" />
+                                            <Button Content="Сохранить изменения" Click="UpdateEmployee_Click" Margin="0,10,0,0" />
                                         </StackPanel>
                                     </Border>
 

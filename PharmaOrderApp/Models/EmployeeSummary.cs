@@ -10,4 +10,7 @@ public sealed class EmployeeSummary
     public string StatusTitle { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public string PersonnelNumber { get; set; } = string.Empty;
+    public string PositionTitle { get; set; } = string.Empty;
+    public decimal Salary { get; set; }
 }
